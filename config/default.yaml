@@ -1,0 +1,29 @@
+llm:
+  provider: "zhipu"
+  model: "glm-4.7"
+  temperature: 0.7
+  timeout_seconds: 60
+  max_retries: 1
+  retry_delay: 2.0
+
+timer:
+  chars_per_minute: 250
+  warning_threshold: 30
+
+scoring:
+  weights:
+    logic: 0.25
+    persuasion: 0.25
+    expression: 0.20
+    teamwork: 0.15
+    rule_compliance: 0.15
+  penalties:
+    overtime_team: -3
+    overtime_individual: -2
+    counter_question: -2
+    not_direct_answer: -2
+    attacker_answered: -2
+    off_topic: -2
+    scripted_summary: -2
+    personal_attack: -3
+    consecutive_speech: -3
