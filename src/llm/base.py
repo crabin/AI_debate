@@ -6,5 +6,4 @@ class BaseLLM(ABC):
 
     @abstractmethod
     def chat(self, messages: list[dict], temperature: float = 0.7) -> str:
-        """Send chat messages and return response."""
-        pass
+        """Send messages and return the assistant's response text."""
