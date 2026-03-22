@@ -8,6 +8,7 @@ from src.stages.base import BaseStage
 from src.stages.opening import OpeningStage
 from src.stages.cross_exam import CrossExamStage
 from src.stages.free_debate import FreeDebateStage
+from src.stages.closing import ClosingStage
 from src.engine.message_pool import MessagePool, Message
 from src.display.terminal import TerminalDisplay
 from src.agents.debater import DebaterAgent
@@ -452,5 +453,126 @@ class TestFreeDebateStage:
         stage = FreeDebateStage.create(display=mock_display)
 
         assert isinstance(stage, BaseStage)
+
+
+class TestClosingStage:
+    """Tests for ClosingStage."""
+
+    def test_create_returns_configured_stage(self):
+        """create factory returns configured ClosingStage."""
+        mock_display = Mock()
+        stage = ClosingStage.create(display=mock_display)
+
+        assert stage.name == "closing"
+        assert "总结陈词" in stage.description
+
+    def test_execute_generates_closing_statements(self):
+        """execute generates closing statements from both teams."""
+        mock_llm = Mock()
+        mock_llm.chat.return_value = "这是我的总结陈词"
+
+        mock_display = Mock()
+        stage = ClosingStage.create(display=mock_display)
+
+        pool = MessagePool()
+        agents = {
+            "pro_4": DebaterAgent.create(
+                position=4, team="pro", stance="支持", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "con_4": DebaterAgent.create(
+                position=4, team="con", stance="反对", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+        }
+
+        result = stage.execute(pool, agents)
+
+        assert result["status"] == "completed"
+        assert result["messages_count"] == 2
+        # Verify LLM was called twice
+        assert mock_llm.chat.call_count == 2
+
+    def test_execute_con_goes_first(self):
+        """execute has con team speak before pro team."""
+        mock_llm = Mock()
+        mock_llm.chat.return_value = "总结"
+
+        mock_display = Mock()
+        stage = ClosingStage.create(display=mock_display)
+
+        pool = MessagePool()
+        agents = {
+            "pro_4": DebaterAgent.create(
+                position=4, team="pro", stance="支持", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "con_4": DebaterAgent.create(
+                position=4, team="con", stance="反对", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+        }
+
+        stage.execute(pool, agents)
+
+        messages = pool.get_messages("public", stage="closing")
+        assert len(messages) == 2
+        # Con should go first
+        assert messages[0].team == "con"
+        assert messages[1].team == "pro"
+
+    def test_execute_handles_missing_agents(self):
+        """execute raises error if required agents missing."""
+        mock_display = Mock()
+        stage = ClosingStage.create(display=mock_display)
+
+        pool = MessagePool()
+        agents = {}  # Missing required agents
+
+        with pytest.raises(ValueError, match="Required agent"):
+            stage.execute(pool, agents)
+
+    def test_execute_with_judge_scoring(self):
+        """execute includes judge scoring when judge agent provided."""
+        mock_llm = Mock()
+        mock_llm.chat.side_effect = [
+            "反方总结",  # con_4
+            "正方总结",  # pro_4
+            '{"speaker": "con_4", "logic": 8, "persuasion": 7, "expression": 8, "teamwork": 7, "rule_compliance": 10, "violations": [], "comment": "好"}',  # judge scores con_4
+            '{"speaker": "pro_4", "logic": 7, "persuasion": 7, "expression": 7, "teamwork": 7, "rule_compliance": 10, "violations": [], "comment": "好"}',  # judge scores pro_4
+        ]
+
+        mock_display = Mock()
+        stage = ClosingStage.create(display=mock_display)
+
+        pool = MessagePool()
+        agents = {
+            "pro_4": DebaterAgent.create(
+                position=4, team="pro", stance="支持", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "con_4": DebaterAgent.create(
+                position=4, team="con", stance="反对", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "judge": JudgeAgent.create(
+                topic="测试", pro_stance="支持", con_stance="反对",
+                llm=mock_llm,
+            ),
+        }
+
+        result = stage.execute(pool, agents)
+
+        assert result["status"] == "completed"
+        # Verify judge was called for scoring
+        assert mock_llm.chat.call_count == 4  # 2 speeches + 2 scores
+
+    def test_closing_stage_is_base_stage_subclass(self):
+        """ClosingStage inherits from BaseStage."""
+        mock_display = Mock()
+        stage = ClosingStage.create(display=mock_display)
+
+        assert isinstance(stage, BaseStage)
+
 
 
