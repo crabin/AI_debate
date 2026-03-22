@@ -2,5 +2,6 @@
 
 from src.agents.base import BaseAgent
 from src.agents.debater import DebaterAgent
+from src.agents.judge import JudgeAgent
 
-__all__ = ["BaseAgent", "DebaterAgent"]
+__all__ = ["BaseAgent", "DebaterAgent", "JudgeAgent"]
