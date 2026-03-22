@@ -226,6 +226,27 @@ class DebaterAgent(BaseAgent):
 
         return self.speak(system_prompt, full_context, instruction, temperature)
 
+    def generate_cross_exam_summary(
+        self,
+        pool,
+        temperature: float = 0.7,
+    ) -> str:
+        """Generate cross-examination summary (for position 1 debaters).
+
+        Args:
+            pool: MessagePool instance
+            temperature: Sampling temperature
+
+        Returns:
+            Generated summary
+        """
+        system_prompt = self._get_system_prompt()
+        # Get only cross_exam messages for context
+        context = self.build_context(pool, stage="cross_exam")
+        instruction = "请进行攻辩小结，必须引用攻辩阶段的实际发言内容。"
+
+        return self.speak(system_prompt, context, instruction, temperature)
+
     def generate_closing_statement(
         self,
         pool,

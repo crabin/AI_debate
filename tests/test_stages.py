@@ -6,6 +6,7 @@ import time
 
 from src.stages.base import BaseStage
 from src.stages.opening import OpeningStage
+from src.stages.cross_exam import CrossExamStage
 from src.engine.message_pool import MessagePool, Message
 from src.display.terminal import TerminalDisplay
 from src.agents.debater import DebaterAgent
@@ -198,3 +199,131 @@ class TestOpeningStage:
         stage = OpeningStage.create(display=mock_display)
 
         assert isinstance(stage, BaseStage)
+
+
+class TestCrossExamStage:
+    """Tests for CrossExamStage."""
+
+    def test_create_returns_configured_stage(self):
+        """create factory returns configured CrossExamStage."""
+        mock_display = Mock()
+        stage = CrossExamStage.create(display=mock_display)
+
+        assert stage.name == "cross_exam"
+        assert "攻辩" in stage.description
+
+    def test_execute_generates_cross_exam_rounds(self):
+        """execute generates 4 rounds of cross-exam."""
+        mock_llm = Mock()
+        mock_llm.chat.return_value = "这是我的问题/回答"
+
+        mock_display = Mock()
+        stage = CrossExamStage.create(display=mock_display)
+
+        pool = MessagePool()
+        agents = {
+            "pro_2": DebaterAgent.create(
+                position=2, team="pro", stance="支持", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "pro_3": DebaterAgent.create(
+                position=3, team="pro", stance="支持", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "con_2": DebaterAgent.create(
+                position=2, team="con", stance="反对", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "con_3": DebaterAgent.create(
+                position=3, team="con", stance="反对", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "pro_1": DebaterAgent.create(
+                position=1, team="pro", stance="支持", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "con_1": DebaterAgent.create(
+                position=1, team="con", stance="反对", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+        }
+
+        result = stage.execute(pool, agents)
+
+        assert result["status"] == "completed"
+        # 4 rounds x 2 messages (Q + A) + 2 summaries = 10 messages
+        assert result["messages_count"] == 10
+
+    def test_execute_publishes_question_answer_pairs(self):
+        """execute publishes question and answer messages."""
+        mock_llm = Mock()
+        mock_llm.chat.return_value = "内容"
+
+        mock_display = Mock()
+        stage = CrossExamStage.create(display=mock_display)
+
+        pool = MessagePool()
+        agents = {
+            "pro_2": DebaterAgent.create(
+                position=2, team="pro", stance="支持", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "con_2": DebaterAgent.create(
+                position=2, team="con", stance="反对", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "pro_1": DebaterAgent.create(
+                position=1, team="pro", stance="支持", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "con_1": DebaterAgent.create(
+                position=1, team="con", stance="反对", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+        }
+
+        stage.execute(pool, agents)
+
+        messages = pool.get_messages("public", stage="cross_exam")
+        # At least first round Q + A + 2 summaries
+        assert len(messages) >= 4
+
+        # Check message types
+        msg_types = [m.msg_type for m in messages]
+        assert "question" in msg_types
+        assert "answer" in msg_types
+        assert "summary" in msg_types
+
+    def test_execute_handles_missing_agents(self):
+        """execute skips missing agents gracefully."""
+        mock_llm = Mock()
+        mock_llm.chat.return_value = "内容"
+
+        mock_display = Mock()
+        stage = CrossExamStage.create(display=mock_display)
+
+        pool = MessagePool()
+        agents = {
+            "pro_1": DebaterAgent.create(
+                position=1, team="pro", stance="支持", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "con_1": DebaterAgent.create(
+                position=1, team="con", stance="反对", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+        }
+
+        # Should complete with just summaries (cross-exam rounds skipped)
+        result = stage.execute(pool, agents)
+        assert result["status"] == "completed"
+        # 2 summaries only
+        assert result["messages_count"] == 2
+
+    def test_cross_exam_stage_is_base_stage_subclass(self):
+        """CrossExamStage inherits from BaseStage."""
+        mock_display = Mock()
+        stage = CrossExamStage.create(display=mock_display)
+
+        assert isinstance(stage, BaseStage)
+
