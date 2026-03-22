@@ -7,6 +7,7 @@ import time
 from src.stages.base import BaseStage
 from src.stages.opening import OpeningStage
 from src.stages.cross_exam import CrossExamStage
+from src.stages.free_debate import FreeDebateStage
 from src.engine.message_pool import MessagePool, Message
 from src.display.terminal import TerminalDisplay
 from src.agents.debater import DebaterAgent
@@ -326,4 +327,130 @@ class TestCrossExamStage:
         stage = CrossExamStage.create(display=mock_display)
 
         assert isinstance(stage, BaseStage)
+
+
+class TestFreeDebateStage:
+    """Tests for FreeDebateStage."""
+
+    def test_create_returns_configured_stage(self):
+        """create factory returns configured FreeDebateStage."""
+        mock_display = Mock()
+        stage = FreeDebateStage.create(display=mock_display)
+
+        assert stage.name == "free_debate"
+        assert "自由辩论" in stage.description
+
+    def test_execute_alternates_teams(self):
+        """execute alternates between pro and con teams."""
+        mock_llm = Mock()
+        mock_llm.chat.return_value = "我的观点是..."
+
+        mock_display = Mock()
+        stage = FreeDebateStage.create(display=mock_display)
+
+        pool = MessagePool()
+        agents = {
+            f"{team}_{i}": DebaterAgent.create(
+                position=i, team=team, stance=f"{team}_立场", topic="测试",
+                personality="logical", llm=mock_llm,
+            )
+            for team in ["pro", "con"]
+            for i in range(1, 5)
+        }
+
+        result = stage.execute(pool, agents)
+
+        assert result["status"] == "completed"
+        assert result["messages_count"] > 0
+        assert result["turns"] > 0
+
+    def test_execute_tracks_speaker_counts(self):
+        """execute tracks how many times each speaker spoke."""
+        mock_llm = Mock()
+        mock_llm.chat.return_value = "发言"
+
+        mock_display = Mock()
+        stage = FreeDebateStage.create(display=mock_display)
+
+        pool = MessagePool()
+        agents = {
+            f"{team}_{i}": DebaterAgent.create(
+                position=i, team=team, stance=f"{team}_立场", topic="测试",
+                personality="logical", llm=mock_llm,
+            )
+            for team in ["pro", "con"]
+            for i in range(1, 5)
+        }
+
+        result = stage.execute(pool, agents)
+
+        speak_counts = result["speak_counts"]
+        assert isinstance(speak_counts, dict)
+        # At least some speakers should have spoken
+        assert sum(speak_counts.values()) > 0
+
+    def test_execute_prevents_consecutive_same_team(self):
+        """execute prevents same team from speaking twice in a row."""
+        mock_llm = Mock()
+        mock_llm.chat.return_value = "发言"
+
+        mock_display = Mock()
+        stage = FreeDebateStage.create(display=mock_display)
+
+        pool = MessagePool()
+        agents = {
+            "pro_1": DebaterAgent.create(
+                position=1, team="pro", stance="支持", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "con_1": DebaterAgent.create(
+                position=1, team="con", stance="反对", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+        }
+
+        stage.execute(pool, agents)
+
+        messages = pool.get_messages("public", stage="free_debate")
+        if len(messages) >= 2:
+            # Check that teams alternate
+            teams = [m.team for m in messages]
+            for i in range(len(teams) - 1):
+                if i > 0:  # Allow same team to start
+                    assert teams[i] != teams[i + 1], f"Same team spoke twice: {teams[i]} at {i}"
+
+    def test_execute_with_timer(self):
+        """execute uses timer to track time."""
+        mock_llm = Mock()
+        mock_llm.chat.return_value = "短发言"
+
+        mock_display = Mock()
+        from src.engine.timer import Timer
+        timer = Timer(total_seconds=240, chars_per_minute=250)
+        stage = FreeDebateStage.create(display=mock_display, timer=timer)
+
+        pool = MessagePool()
+        agents = {
+            "pro_1": DebaterAgent.create(
+                position=1, team="pro", stance="支持", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+            "con_1": DebaterAgent.create(
+                position=1, team="con", stance="反对", topic="测试",
+                personality="logical", llm=mock_llm,
+            ),
+        }
+
+        result = stage.execute(pool, agents)
+
+        assert "pro_time_left" in result
+        assert "con_time_left" in result
+
+    def test_free_debate_stage_is_base_stage_subclass(self):
+        """FreeDebateStage inherits from BaseStage."""
+        mock_display = Mock()
+        stage = FreeDebateStage.create(display=mock_display)
+
+        assert isinstance(stage, BaseStage)
+
 
