@@ -1,5 +1,6 @@
 """CLI entry point for AI Debate System."""
 
+import os
 import sys
 import time
 import logging
@@ -90,6 +91,7 @@ def run_debate(
     topic_index: int = 0,
     config_path: Path | None = None,
     output_path: Path | None = None,
+    concurrent: bool = False,
 ) -> dict:
     """Run a complete debate.
 
@@ -143,6 +145,7 @@ def run_debate(
     controller = StageController.create(
         display=display,
         penalties=config.get("penalties", {}),
+        concurrent=concurrent,
     )
 
     # Run debate
@@ -196,8 +199,11 @@ def main() -> int:
             if idx + 1 < len(sys.argv):
                 output_path = Path(sys.argv[idx + 1])
 
+        # Parse --concurrent flag
+        concurrent = "--concurrent" in sys.argv or os.environ.get("DEBATE_CONCURRENT_FREE", "").lower() == "true"
+
         # Run debate
-        results = run_debate(topic_index=topic_index, output_path=output_path)
+        results = run_debate(topic_index=topic_index, output_path=output_path, concurrent=concurrent)
 
         # Exit with appropriate code
         return 0 if results["status"] == "completed" else 1

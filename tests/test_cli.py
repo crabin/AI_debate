@@ -204,7 +204,7 @@ class TestMain:
         finally:
             sys.argv = original_argv
 
-        mock_run_debate.assert_called_once_with(topic_index=2, output_path=None)
+        mock_run_debate.assert_called_once_with(topic_index=2, output_path=None, concurrent=False)
 
     @patch("src.cli.setup_logging")
     @patch("src.cli.load_dotenv")

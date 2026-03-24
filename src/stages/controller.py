@@ -29,17 +29,20 @@ class StageController:
         self,
         display,
         penalties: dict | None = None,
+        concurrent: bool = False,
     ) -> None:
         """Initialize stage controller.
 
         Args:
             display: TerminalDisplay instance
             penalties: Optional penalty configuration
+            concurrent: Whether to use concurrent execution for free_debate stage
         """
         self._display = display
         self._penalties = penalties or {}
         self._stages: dict[str, BaseStage] = {}
         self._scorer = Scorer()
+        self._concurrent = concurrent
 
     def create_stages(self) -> None:
         """Create all stage instances."""
@@ -77,7 +80,11 @@ class StageController:
             stage = self._stages[stage_name]
 
             logger.info(f"Starting stage: {stage_name}")
-            result = stage.execute(pool, agents, self._penalties)
+            # Route free_debate to concurrent executor when flag is set
+            if stage_name == "free_debate" and self._concurrent:
+                result = stage.execute_concurrent(pool, agents, self._penalties)
+            else:
+                result = stage.execute(pool, agents, self._penalties)
             stage_results.append(result)
 
             logger.info(f"Completed stage: {stage_name}")
@@ -187,14 +194,15 @@ class StageController:
         }
 
     @classmethod
-    def create(cls, display, penalties: dict | None = None) -> "StageController":
+    def create(cls, display, penalties: dict | None = None, concurrent: bool = False) -> "StageController":
         """Factory method to create a StageController.
 
         Args:
             display: TerminalDisplay instance
             penalties: Optional penalty configuration
+            concurrent: Whether to use concurrent execution for free_debate stage
 
         Returns:
             Configured StageController instance
         """
-        return cls(display=display, penalties=penalties)
+        return cls(display=display, penalties=penalties, concurrent=concurrent)

@@ -1,15 +1,11 @@
 """Tests for StageController."""
 
-import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 import json
 
 from src.stages.controller import StageController
 from src.engine.message_pool import MessagePool, Message
-from src.agents.debater import DebaterAgent
 from src.agents.judge import JudgeAgent
-from src.engine.scorer import ScoreCard
-from src.llm.base import BaseLLM
 
 
 class TestStageController:
@@ -166,3 +162,34 @@ class TestStageController:
 
         assert result["winner"] == "tie"
         assert result["margin"] == 0
+
+
+def test_controller_routes_to_execute_concurrent_when_flag_set(fake_llm_factory):
+    from src.stages.controller import StageController
+    from src.engine.message_pool import MessagePool
+    from src.display.terminal import TerminalDisplay
+    from rich.console import Console
+    import io
+    from unittest.mock import patch, Mock
+
+    display = TerminalDisplay(console=Console(file=io.StringIO()))
+    controller = StageController.create(display=display, concurrent=True)
+
+    pool = MessagePool()
+    agents = {}  # Empty agents — stages mocked out
+
+    noop_result = {"status": "completed", "messages_count": 0}
+    concurrent_result = {"status": "completed", "stage": "free_debate",
+                         "messages_count": 0, "rounds": 0,
+                         "speak_counts": {}, "concurrent": True,
+                         "pro_time_left": 240, "con_time_left": 240}
+
+    # Patch all stage execute methods and execute_concurrent for free_debate
+    with patch("src.stages.opening.OpeningStage.execute", return_value=noop_result), \
+         patch("src.stages.cross_exam.CrossExamStage.execute", return_value=noop_result), \
+         patch("src.stages.free_debate.FreeDebateStage.execute_concurrent") as mock_concurrent, \
+         patch("src.stages.closing.ClosingStage.execute", return_value=noop_result):
+        mock_concurrent.return_value = concurrent_result
+        controller.run_debate(pool, agents)
+
+    mock_concurrent.assert_called_once()
