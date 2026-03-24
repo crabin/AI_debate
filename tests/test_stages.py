@@ -1,19 +1,27 @@
 """Tests for debate stages."""
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-import time
+from unittest.mock import Mock
 
 from src.stages.base import BaseStage
 from src.stages.opening import OpeningStage
 from src.stages.cross_exam import CrossExamStage
 from src.stages.free_debate import FreeDebateStage
 from src.stages.closing import ClosingStage
-from src.engine.message_pool import MessagePool, Message
-from src.display.terminal import TerminalDisplay
+from src.engine.message_pool import MessagePool
 from src.agents.debater import DebaterAgent
 from src.agents.judge import JudgeAgent
-from src.llm.base import BaseLLM
+
+
+def create_mock_llm(response: str = "Mock LLM response") -> Mock:
+    """Create a Mock LLM with both chat and chat_stream configured.
+
+    This helper ensures that streaming methods work correctly in tests.
+    """
+    mock_llm = Mock()
+    mock_llm.chat.return_value = response
+    mock_llm.chat_stream.return_value = response
+    return mock_llm
 
 
 # Concrete test implementation of BaseStage
@@ -68,8 +76,9 @@ class TestOpeningStage:
 
     def test_execute_generates_opening_statements(self):
         """execute generates opening statements from both teams."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "这是我的立论陈词"
+        mock_llm.chat_stream.return_value = "这是我的立论陈词"
 
         mock_display = Mock()
         stage = OpeningStage.create(display=mock_display)
@@ -90,13 +99,14 @@ class TestOpeningStage:
 
         assert result["status"] == "completed"
         assert result["messages_count"] == 2
-        # Verify LLM was called twice
-        assert mock_llm.chat.call_count == 2
+        # Verify LLM was called twice (speeches use chat_stream)
+        assert mock_llm.chat_stream.call_count == 2
 
     def test_execute_publishes_messages_to_pool(self):
         """execute publishes messages to message pool."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "立论内容"
+        mock_llm.chat_stream.return_value = "立论内容"
 
         mock_display = Mock()
         stage = OpeningStage.create(display=mock_display)
@@ -124,8 +134,9 @@ class TestOpeningStage:
 
     def test_execute_displays_progress(self):
         """execute calls display to show progress."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "立论"
+        mock_llm.chat_stream.return_value = "立论"
 
         mock_display = Mock()
         stage = OpeningStage.create(display=mock_display)
@@ -162,7 +173,7 @@ class TestOpeningStage:
 
     def test_execute_with_judge_scoring(self):
         """execute includes judge scoring when judge agent provided."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.side_effect = [
             "正方立论",  # pro_1
             "反方立论",  # con_1
@@ -192,8 +203,9 @@ class TestOpeningStage:
         result = stage.execute(pool, agents)
 
         assert result["status"] == "completed"
-        # Verify judge was called for scoring
-        assert mock_llm.chat.call_count == 4  # 2 speeches + 2 scores
+        # Verify LLM was called correctly (speeches use chat_stream, judge uses chat)
+        total_calls = mock_llm.chat.call_count + mock_llm.chat_stream.call_count
+        assert total_calls == 4  # 2 speeches + 2 scores
 
     def test_opening_stage_is_base_stage_subclass(self):
         """OpeningStage inherits from BaseStage."""
@@ -216,8 +228,9 @@ class TestCrossExamStage:
 
     def test_execute_generates_cross_exam_rounds(self):
         """execute generates 4 rounds of cross-exam."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "这是我的问题/回答"
+        mock_llm.chat_stream.return_value = "这是我的问题/回答"
 
         mock_display = Mock()
         stage = CrossExamStage.create(display=mock_display)
@@ -258,8 +271,9 @@ class TestCrossExamStage:
 
     def test_execute_publishes_question_answer_pairs(self):
         """execute publishes question and answer messages."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "内容"
+        mock_llm.chat_stream.return_value = "内容"
 
         mock_display = Mock()
         stage = CrossExamStage.create(display=mock_display)
@@ -298,8 +312,9 @@ class TestCrossExamStage:
 
     def test_execute_handles_missing_agents(self):
         """execute skips missing agents gracefully."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "内容"
+        mock_llm.chat_stream.return_value = "内容"
 
         mock_display = Mock()
         stage = CrossExamStage.create(display=mock_display)
@@ -343,8 +358,9 @@ class TestFreeDebateStage:
 
     def test_execute_alternates_teams(self):
         """execute alternates between pro and con teams."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "我的观点是..."
+        mock_llm.chat_stream.return_value = "我的观点是..."
 
         mock_display = Mock()
         stage = FreeDebateStage.create(display=mock_display)
@@ -367,8 +383,9 @@ class TestFreeDebateStage:
 
     def test_execute_tracks_speaker_counts(self):
         """execute tracks how many times each speaker spoke."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "发言"
+        mock_llm.chat_stream.return_value = "发言"
 
         mock_display = Mock()
         stage = FreeDebateStage.create(display=mock_display)
@@ -392,8 +409,9 @@ class TestFreeDebateStage:
 
     def test_execute_prevents_consecutive_same_team(self):
         """execute prevents same team from speaking twice in a row."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "发言"
+        mock_llm.chat_stream.return_value = "发言"
 
         mock_display = Mock()
         stage = FreeDebateStage.create(display=mock_display)
@@ -422,8 +440,9 @@ class TestFreeDebateStage:
 
     def test_execute_with_timer(self):
         """execute uses timer to track time."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "短发言"
+        mock_llm.chat_stream.return_value = "短发言"
 
         mock_display = Mock()
         from src.engine.timer import Timer
@@ -455,6 +474,43 @@ class TestFreeDebateStage:
         assert isinstance(stage, BaseStage)
 
 
+def test_execute_concurrent_produces_messages_from_both_teams(fake_llm_factory):
+    from src.stages.free_debate import FreeDebateStage
+    from src.engine.message_pool import MessagePool
+    from src.display.terminal import TerminalDisplay
+    from rich.console import Console
+    import io
+
+    llm = fake_llm_factory(["并发发言内容"] * 20)
+    display = TerminalDisplay(console=Console(file=io.StringIO()))
+    stage = FreeDebateStage.create(display=display)
+    pool = MessagePool()
+
+    # Build minimal agents dict
+    from tests.conftest import FakeLLM
+    from src.agents.debater import DebaterAgent
+
+    agents = {}
+    for pos in range(1, 5):
+        for team in ["pro", "con"]:
+            a = DebaterAgent.create(
+                position=pos, team=team,
+                stance="test stance", topic="test topic",
+                personality="logical", llm=llm,
+            )
+            agents[a.agent_id] = a
+
+    result = stage.execute_concurrent(pool, agents)
+
+    messages = pool.get_messages("public")
+    assert len(messages) >= 2, "At least one round should produce 2 messages"
+    teams = {m.team for m in messages}
+    assert "pro" in teams
+    assert "con" in teams
+    assert result["status"] == "completed"
+    assert result["concurrent"] is True
+
+
 class TestClosingStage:
     """Tests for ClosingStage."""
 
@@ -468,8 +524,9 @@ class TestClosingStage:
 
     def test_execute_generates_closing_statements(self):
         """execute generates closing statements from both teams."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "这是我的总结陈词"
+        mock_llm.chat_stream.return_value = "这是我的总结陈词"
 
         mock_display = Mock()
         stage = ClosingStage.create(display=mock_display)
@@ -490,13 +547,14 @@ class TestClosingStage:
 
         assert result["status"] == "completed"
         assert result["messages_count"] == 2
-        # Verify LLM was called twice
-        assert mock_llm.chat.call_count == 2
+        # Verify LLM was called twice (speeches use chat_stream)
+        assert mock_llm.chat_stream.call_count == 2
 
     def test_execute_con_goes_first(self):
         """execute has con team speak before pro team."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.return_value = "总结"
+        mock_llm.chat_stream.return_value = "总结"
 
         mock_display = Mock()
         stage = ClosingStage.create(display=mock_display)
@@ -534,7 +592,7 @@ class TestClosingStage:
 
     def test_execute_with_judge_scoring(self):
         """execute includes judge scoring when judge agent provided."""
-        mock_llm = Mock()
+        mock_llm = create_mock_llm()
         mock_llm.chat.side_effect = [
             "反方总结",  # con_4
             "正方总结",  # pro_4
@@ -564,8 +622,9 @@ class TestClosingStage:
         result = stage.execute(pool, agents)
 
         assert result["status"] == "completed"
-        # Verify judge was called for scoring
-        assert mock_llm.chat.call_count == 4  # 2 speeches + 2 scores
+        # Verify LLM was called correctly (speeches use chat_stream, judge uses chat)
+        total_calls = mock_llm.chat.call_count + mock_llm.chat_stream.call_count
+        assert total_calls == 4  # 2 speeches + 2 scores
 
     def test_closing_stage_is_base_stage_subclass(self):
         """ClosingStage inherits from BaseStage."""

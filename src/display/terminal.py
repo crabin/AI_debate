@@ -166,6 +166,60 @@ class TerminalDisplay:
 
     # Internal implementation methods (show_* prefix)
 
+    def concurrent_speech_panels(
+        self,
+        pro_name: str,
+        con_name: str,
+        pro_buf: "io.StringIO",
+        con_buf: "io.StringIO",
+        pro_thread: "threading.Thread",
+        con_thread: "threading.Thread",
+        buf_lock: "threading.Lock",
+        refresh_rate: float = 0.1,
+    ) -> None:
+        """Display two speakers' streaming output side-by-side using Rich Live.
+
+        Polls both StringIO buffers until both threads finish, refreshing
+        a two-panel table at ~10fps.
+
+        Args:
+            pro_name: Display name of the pro speaker
+            con_name: Display name of the con speaker
+            pro_buf: StringIO buffer written to by the pro thread
+            con_buf: StringIO buffer written to by the con thread
+            pro_thread: Pro speaker's thread (join signal)
+            con_thread: Con speaker's thread (join signal)
+            buf_lock: Lock shared with the writer threads
+            refresh_rate: Seconds between Live refreshes
+        """
+        import io
+        import threading
+        import time as _time
+        from rich.live import Live
+        from rich.table import Table
+        from rich.panel import Panel
+
+        def _make_table() -> Table:
+            with buf_lock:
+                pro_text = pro_buf.getvalue()
+                con_text = con_buf.getvalue()
+
+            table = Table.grid(expand=True, padding=0)
+            table.add_column(ratio=1)
+            table.add_column(ratio=1)
+            table.add_row(
+                Panel(pro_text or "…", title=f"[bold blue]{pro_name}[/bold blue]", border_style="blue"),
+                Panel(con_text or "…", title=f"[bold red]{con_name}[/bold red]", border_style="red"),
+            )
+            return table
+
+        with Live(_make_table(), console=self._console, refresh_per_second=10) as live:
+            while pro_thread.is_alive() or con_thread.is_alive():
+                live.update(_make_table())
+                _time.sleep(refresh_rate)
+            # Final update with complete content
+            live.update(_make_table())
+
     def show_header(self, topic: str, pro_stance: str, con_stance: str) -> None:
         self._console.print()
         self._console.print(
