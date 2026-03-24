@@ -1,6 +1,9 @@
 """Base agent class for AI Debate System."""
 
 import logging
+import sys
+import time
+from typing import Callable
 from src.llm.base import BaseLLM
 
 logger = logging.getLogger(__name__)
@@ -41,6 +44,11 @@ class BaseAgent:
         self.team = team
         self.role = role
         self._llm = llm
+
+    @property
+    def model_name(self) -> str:
+        """Return the model identifier from the underlying LLM."""
+        return self._llm.model_name
 
     def build_context(
         self,
@@ -91,4 +99,32 @@ class BaseAgent:
         ]
 
         response = self._llm.chat(messages, temperature=temperature)
+        return response.strip()
+
+    def speak_stream(
+        self,
+        system_prompt: str,
+        context: str,
+        instruction: str,
+        temperature: float = 0.7,
+        callback: Callable[[str], None] | None = None,
+    ) -> str:
+        """Generate speech using LLM with streaming output.
+
+        Args:
+            system_prompt: System prompt for the agent
+            context: Debate context/history
+            instruction: Specific instruction for this speech
+            temperature: Sampling temperature
+            callback: Optional callback function for each character chunk
+
+        Returns:
+            Generated speech content
+        """
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"{context}\n【当前任务】{instruction}"},
+        ]
+
+        response = self._llm.chat_stream(messages, temperature=temperature, callback=callback)
         return response.strip()

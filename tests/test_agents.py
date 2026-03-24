@@ -1,7 +1,6 @@
 """Tests for agent classes."""
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 
 from src.agents.base import BaseAgent
 from src.agents.debater import DebaterAgent
@@ -263,7 +262,7 @@ class TestDebaterAgent:
         )
         pool.publish("public", msg)
 
-        result = agent.generate_opening_statement(pool)
+        agent.generate_opening_statement(pool)
 
         call_args = mock_llm.chat.call_args
         messages = call_args[0][0]
@@ -303,3 +302,12 @@ class TestDebaterAgent:
         )
 
         assert isinstance(agent, BaseAgent)
+
+
+def test_base_agent_exposes_model_name(fake_llm):
+    from src.agents.base import BaseAgent
+    agent = BaseAgent(
+        agent_id="pro_1", name="正方一辩", team="pro",
+        role="一辩", llm=fake_llm,
+    )
+    assert agent.model_name == "fake-model"
