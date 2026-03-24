@@ -89,12 +89,14 @@ def create_agents(
 def run_debate(
     topic_index: int = 0,
     config_path: Path | None = None,
+    output_path: Path | None = None,
 ) -> dict:
     """Run a complete debate.
 
     Args:
         topic_index: Index of topic to use (0-based)
         config_path: Optional path to config directory
+        output_path: Optional path to save JSON export
 
     Returns:
         Final results dictionary
@@ -154,6 +156,14 @@ def run_debate(
     # Show final results
     display.final_results(results)
 
+    # Save JSON export if requested
+    scorer = results.pop("_scorer", None)
+    if output_path and scorer is not None:
+        from src.export import save_debate_json
+        save_debate_json(results, pool, scorer, output_path, start_time)
+    elif output_path and scorer is None:
+        logger.warning("Scorer not available; JSON export skipped")
+
     return results
 
 
@@ -179,8 +189,15 @@ def main() -> int:
         # Setup logging
         setup_logging("INFO")
 
+        # Parse --output flag
+        output_path = None
+        if "--output" in sys.argv:
+            idx = sys.argv.index("--output")
+            if idx + 1 < len(sys.argv):
+                output_path = Path(sys.argv[idx + 1])
+
         # Run debate
-        results = run_debate(topic_index=topic_index)
+        results = run_debate(topic_index=topic_index, output_path=output_path)
 
         # Exit with appropriate code
         return 0 if results["status"] == "completed" else 1
