@@ -1,6 +1,7 @@
 """CLI entry point for AI Debate System."""
 
 import sys
+import time
 import logging
 from pathlib import Path
 
@@ -8,6 +9,8 @@ from dotenv import load_dotenv
 
 from src.config import load_config, load_topics, load_personalities
 from src.llm import create_llm
+from src.llm.base import BaseLLM
+from src.agents.base import BaseAgent
 from src.agents.debater import DebaterAgent
 from src.agents.judge import JudgeAgent
 from src.display.terminal import TerminalDisplay
@@ -29,25 +32,36 @@ def setup_logging(level: str = "INFO") -> None:
     )
 
 
-def create_agents(config: dict, topic: dict, personalities: dict, llm) -> dict:
+def create_agents(
+    config: dict,
+    topic: dict,
+    personalities: dict,
+    pro_llm: BaseLLM,
+    con_llm: BaseLLM,
+    judge_llm: BaseLLM,
+    display=None,
+) -> dict[str, BaseAgent]:
     """Create all debate agents.
 
     Args:
         config: Configuration dictionary
         topic: Topic dictionary with title, pro_stance, con_stance
         personalities: Personality templates dictionary
-        llm: LLM instance
+        pro_llm: LLM instance for the pro team
+        con_llm: LLM instance for the con team
+        judge_llm: LLM instance for the judge
+        display: Optional TerminalDisplay instance for judge output
 
     Returns:
         Dictionary of agent_id -> Agent
     """
-    agents = {}
+    agents: dict[str, BaseAgent] = {}
 
     # Create debaters for both teams
     for position in range(1, 5):
         for team in ["pro", "con"]:
             personality_key = config.get("default_personality", "logical")
-            personality = personalities.get(personality_key, personalities["logical"])
+            team_llm = pro_llm if team == "pro" else con_llm
 
             agent = DebaterAgent.create(
                 position=position,
@@ -55,7 +69,7 @@ def create_agents(config: dict, topic: dict, personalities: dict, llm) -> dict:
                 stance=topic["pro_stance"] if team == "pro" else topic["con_stance"],
                 topic=topic["title"],
                 personality=personality_key,
-                llm=llm,
+                llm=team_llm,
             )
             agents[agent.agent_id] = agent
 
@@ -64,7 +78,8 @@ def create_agents(config: dict, topic: dict, personalities: dict, llm) -> dict:
         topic=topic["title"],
         pro_stance=topic["pro_stance"],
         con_stance=topic["con_stance"],
-        llm=llm,
+        llm=judge_llm,
+        display=display,
     )
     agents["judge"] = judge
 
@@ -84,6 +99,8 @@ def run_debate(
     Returns:
         Final results dictionary
     """
+    start_time = time.time()
+
     # Load configuration
     config = load_config(config_path)
     topics = load_topics(config_path)
@@ -94,8 +111,10 @@ def run_debate(
 
     topic = topics[topic_index]
 
-    # Setup LLM
-    llm = create_llm(config)
+    # Setup per-role LLMs
+    pro_llm = create_llm(config, role="pro")
+    con_llm = create_llm(config, role="con")
+    judge_llm = create_llm(config, role="judge")
 
     # Create display
     display = TerminalDisplay()
@@ -108,7 +127,11 @@ def run_debate(
     )
 
     # Create agents
-    agents = create_agents(config, topic, personalities, llm)
+    agents = create_agents(
+        config, topic, personalities,
+        pro_llm=pro_llm, con_llm=con_llm, judge_llm=judge_llm,
+        display=display,
+    )
 
     # Show participants
     display.participants(agents)
@@ -122,6 +145,11 @@ def run_debate(
 
     # Run debate
     results = controller.run_debate(pool, agents)
+
+    # Add topic metadata to results
+    results["topic"] = topic["title"]
+    results["pro_stance"] = topic["pro_stance"]
+    results["con_stance"] = topic["con_stance"]
 
     # Show final results
     display.final_results(results)

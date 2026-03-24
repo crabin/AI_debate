@@ -2,8 +2,7 @@
 
 import sys
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
+from unittest.mock import Mock, patch
 
 from src.cli import setup_logging, create_agents, run_debate
 
@@ -38,7 +37,7 @@ class TestCreateAgents:
             "logical": "逻辑严密"
         }
 
-        agents = create_agents(config, topic, personalities, mock_llm)
+        agents = create_agents(config, topic, personalities, pro_llm=mock_llm, con_llm=mock_llm, judge_llm=mock_llm)
 
         # Should have 8 debaters + 1 judge = 9 agents
         assert len(agents) == 9
@@ -58,7 +57,7 @@ class TestCreateAgents:
         }
         personalities = {"logical": "逻辑严密"}
 
-        agents = create_agents(config, topic, personalities, mock_llm)
+        agents = create_agents(config, topic, personalities, pro_llm=mock_llm, con_llm=mock_llm, judge_llm=mock_llm)
 
         assert agents["pro_1"].stance == "支持死刑"
         assert agents["con_1"].stance == "反对死刑"
@@ -132,6 +131,25 @@ class TestRunDebate:
 
             with pytest.raises(ValueError, match="out of range"):
                 run_debate(topic_index=5)
+
+
+class TestCreateAgentsSeparateLLMs:
+    """Tests for create_agents with per-role LLMs."""
+
+    def test_create_agents_uses_separate_llms(self, fake_llm_factory):
+        """Each team and judge gets its own LLM instance."""
+        from src.cli import create_agents
+        pro_llm = fake_llm_factory(["pro response"])
+        con_llm = fake_llm_factory(["con response"])
+        judge_llm = fake_llm_factory(['{"type":"review","summary":"ok","highlights":[],"suggestions":[]}'])
+
+        topic = {"title": "Test", "pro_stance": "Pro", "con_stance": "Con"}
+        personalities = {}
+        agents = create_agents({}, topic, personalities, pro_llm=pro_llm, con_llm=con_llm, judge_llm=judge_llm)
+
+        assert agents["pro_1"]._llm is pro_llm
+        assert agents["con_1"]._llm is con_llm
+        assert agents["judge"]._llm is judge_llm
 
 
 class TestMain:
