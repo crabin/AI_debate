@@ -1,6 +1,8 @@
 import pytest
+from unittest.mock import MagicMock, patch
 from src.llm.base import BaseLLM
 from src.llm import LLM_FACTORY, create_llm
+from src.llm.openai_compatible import OpenAICompatibleLLM
 from tests.conftest import FakeLLM
 
 
@@ -29,3 +31,53 @@ def test_create_llm_unknown_provider_raises():
 
 def test_fake_llm_has_model_name(fake_llm):
     assert fake_llm.model_name == "fake-model"
+
+
+# --- OpenAICompatibleLLM tests ---
+
+
+def _make_llm() -> OpenAICompatibleLLM:
+    return OpenAICompatibleLLM(
+        api_key="test-key",
+        model="gpt-4o",
+        base_url="https://api.openai.com/v1",
+        timeout_seconds=30,
+        max_retries=1,
+        retry_delay=0.1,
+    )
+
+
+def test_openai_compatible_model_name():
+    llm = _make_llm()
+    assert llm.model_name == "gpt-4o"
+
+
+def test_openai_compatible_chat_returns_string():
+    llm = _make_llm()
+    mock_response = MagicMock()
+    mock_response.choices[0].message.content = "Hello"
+
+    with patch.object(llm._client.chat.completions, "create", return_value=mock_response):
+        result = llm.chat([{"role": "user", "content": "Hi"}])
+
+    assert result == "Hello"
+
+
+def test_openai_compatible_chat_stream_calls_callback():
+    llm = _make_llm()
+    chunks = []
+
+    chunk1 = MagicMock()
+    chunk1.choices[0].delta.content = "Hel"
+    chunk2 = MagicMock()
+    chunk2.choices[0].delta.content = "lo"
+    mock_stream = iter([chunk1, chunk2])
+
+    with patch.object(llm._client.chat.completions, "create", return_value=mock_stream):
+        result = llm.chat_stream(
+            [{"role": "user", "content": "Hi"}],
+            callback=lambda c: chunks.append(c),
+        )
+
+    assert result == "Hello"
+    assert chunks == ["H", "e", "l", "l", "o"]
