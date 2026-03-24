@@ -1,4 +1,5 @@
 import pytest
+from typing import Callable
 from src.llm.base import BaseLLM
 
 
@@ -10,6 +11,10 @@ class FakeLLM(BaseLLM):
         self._call_count = 0
         self.call_history: list[list[dict]] = []
 
+    @property
+    def model_name(self) -> str:
+        return "fake-model"
+
     def chat(self, messages: list[dict], temperature: float = 0.7) -> str:
         self.call_history.append(messages)
         if self._responses:
@@ -17,6 +22,24 @@ class FakeLLM(BaseLLM):
         else:
             response = "Fake LLM response"
         self._call_count += 1
+        return response
+
+    def chat_stream(
+        self,
+        messages: list[dict],
+        temperature: float = 0.7,
+        callback: Callable[[str], None] | None = None,
+    ) -> str:
+        """Stream chat response (simplified implementation for tests).
+
+        For testing, this just calls the non-streaming chat and optionally
+        invokes the callback with the full response.
+        """
+        response = self.chat(messages, temperature)
+        if callback:
+            # For testing, just call the callback with the full response
+            # Real streaming would call it character by character
+            callback(response)
         return response
 
 

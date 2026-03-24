@@ -25,3 +25,7 @@ def test_llm_factory_contains_zhipu():
 def test_create_llm_unknown_provider_raises():
     with pytest.raises(ValueError, match="Unknown LLM provider"):
         create_llm({"provider": "nonexistent"})
+
+
+def test_fake_llm_has_model_name(fake_llm):
+    assert fake_llm.model_name == "fake-model"
