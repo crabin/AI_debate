@@ -72,6 +72,9 @@ class TerminalDisplay:
             name, score = best
             self._console.print(f"  [yellow]最佳辩手：{name} ({score:.1f}分)[/yellow]")
 
+        # Add verdict panel (new)
+        self.verdict_panel(results)
+
         review = results.get("review")
         if review:
             self._console.print()
@@ -94,6 +97,31 @@ class TerminalDisplay:
                 review_content = str(review)
 
             self._console.print(Panel(review_content, title="[bold yellow]裁判总结[/bold yellow]", border_style="yellow"))
+
+    def verdict_panel(self, results: dict) -> None:
+        """Display the final verdict panel with topic conclusion and key moments."""
+        topic_conclusion = results.get("topic_conclusion", "")
+        winner_reason = results.get("winner_reason", "")
+        key_moments = results.get("key_moments", [])
+        best_debater_reason = results.get("best_debater_reason", "")
+
+        if not any([topic_conclusion, winner_reason, key_moments]):
+            return
+
+        parts = []
+        if winner_reason:
+            parts.append(f"[bold]获胜原因：[/bold]{winner_reason}")
+        if topic_conclusion:
+            parts.append(f"\n[bold yellow]辩题结论：[/bold yellow]\n{topic_conclusion}")
+        if key_moments:
+            parts.append("\n[bold]关键时刻：[/bold]")
+            parts.extend(f"  • {m}" for m in key_moments)
+        if best_debater_reason:
+            parts.append(f"\n[dim]{best_debater_reason}[/dim]")
+
+        self._console.print(
+            Panel("\n".join(parts), title="[bold yellow]裁判裁决[/bold yellow]", border_style="yellow")
+        )
 
     def stage_start(self, name: str, description: str) -> None:
         """Display stage start banner."""

@@ -8,7 +8,6 @@ from src.stages.free_debate import FreeDebateStage
 from src.stages.closing import ClosingStage
 from src.engine.message_pool import MessagePool
 from src.engine.scorer import Scorer, ScoreCard
-from src.agents.judge import JudgeAgent
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +149,9 @@ class StageController:
             winner = "tie"
             margin = 0
 
+        # Get best debater (needed for both review and verdict)
+        best_debater = scorer.get_best_debater()
+
         # Get judge review if available
         judge_agent = agents.get("judge")
         review = None
@@ -159,13 +161,29 @@ class StageController:
             except Exception as e:
                 logger.warning(f"Failed to generate review: {e}")
 
+        # Generate verdict (new)
+        verdict_data: dict = {}
+        if judge_agent:
+            try:
+                verdict_data = judge_agent.generate_verdict(
+                    pool=pool,
+                    winner=winner,
+                    pro_score=pro_total,
+                    con_score=con_total,
+                    best_debater=best_debater,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to generate verdict: {e}")
+
         return {
             "pro_score": pro_total,
             "con_score": con_total,
             "winner": winner,
             "margin": margin,
+            "best_debater": best_debater,
             "review": review,
-            "best_debater": scorer.get_best_debater(),
+            "_scorer": scorer,
+            **verdict_data,
         }
 
     @classmethod

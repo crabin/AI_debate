@@ -1,6 +1,5 @@
 """Tests for JudgeAgent."""
 
-import pytest
 from unittest.mock import Mock, patch
 import json
 
@@ -110,7 +109,7 @@ class TestJudgeAgent:
         )
         pool.publish("public", msg)
 
-        result = agent.score_speaker(pool, speaker_id="pro_1")
+        agent.score_speaker(pool, speaker_id="pro_1")
 
         call_args = mock_llm.chat.call_args
         messages = call_args[0][0]
@@ -223,10 +222,66 @@ class TestJudgeAgent:
             llm=mock_llm,
         )
 
-        prompt = agent._get_system_prompt()
+        agent._get_system_prompt()
 
         mock_judge_prompt.format.assert_called_once()
         call_kwargs = mock_judge_prompt.format.call_args[1]
         assert call_kwargs["topic"] == "死刑应该被废除"
         assert call_kwargs["pro_stance"] == "支持死刑"
         assert call_kwargs["con_stance"] == "反对死刑"
+
+
+VERDICT_JSON = json.dumps({
+    "winner_reason": "正方逻辑更严密",
+    "topic_conclusion": "综合来看，效率优先",
+    "best_debater_reason": "二辩表现最佳",
+    "key_moments": ["正方二辩三连问"],
+})
+
+
+def test_generate_verdict_returns_structured_dict(fake_llm_factory):
+    from src.agents.judge import JudgeAgent
+    from src.engine.message_pool import MessagePool
+
+    llm = fake_llm_factory([VERDICT_JSON])
+    judge = JudgeAgent.create(
+        topic="Test topic",
+        pro_stance="Pro",
+        con_stance="Con",
+        llm=llm,
+    )
+    pool = MessagePool()
+
+    verdict = judge.generate_verdict(
+        pool=pool,
+        winner="pro",
+        pro_score=42.5,
+        con_score=38.0,
+        best_debater=("pro_2", 18.5),
+    )
+
+    assert verdict["winner_reason"] == "正方逻辑更严密"
+    assert verdict["topic_conclusion"] == "综合来看，效率优先"
+    assert verdict["key_moments"] == ["正方二辩三连问"]
+
+
+def test_generate_verdict_returns_fallback_on_parse_error(fake_llm_factory):
+    from src.agents.judge import JudgeAgent
+    from src.engine.message_pool import MessagePool
+
+    llm = fake_llm_factory(["not valid json"])
+    judge = JudgeAgent.create(
+        topic="Test", pro_stance="Pro", con_stance="Con", llm=llm
+    )
+    verdict = judge.generate_verdict(
+        pool=MessagePool(), winner="con",
+        pro_score=30.0, con_score=35.0,
+        best_debater=("con_3", 12.0),
+    )
+
+    # Must have all keys with empty/default values
+    assert "winner_reason" in verdict
+    assert "topic_conclusion" in verdict
+    assert "best_debater_reason" in verdict
+    assert "key_moments" in verdict
+    assert verdict["key_moments"] == []
