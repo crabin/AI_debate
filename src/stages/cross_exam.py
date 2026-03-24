@@ -143,7 +143,7 @@ class CrossExamStage(BaseStage):
             target_id = self._select_target(agents, defender_team)
             defender = agents[target_id]
 
-            # Attacker asks questions
+            # Attacker asks questions with streaming
             self._display.speech(
                 speaker=attacker.name,
                 content=f"向{defender.name}提问...",
@@ -151,9 +151,15 @@ class CrossExamStage(BaseStage):
                 expected=expected_chars,
             )
 
+            # Callback for streaming output
+            content_buffer = []
+            def stream_callback(char: str) -> None:
+                content_buffer.append(char)
+
             questions = attacker.generate_cross_exam_question(
                 pool,
                 target_opponent=defender.agent_id,
+                callback=stream_callback,
             )
 
             # Extract target choice if present
@@ -175,14 +181,31 @@ class CrossExamStage(BaseStage):
             pool.publish("public", question_msg)
             messages_published += 1
 
-            self._display.speech(
-                speaker=attacker.name,
-                content=questions,
-                word_count=len(questions),
-                expected=expected_chars,
-            )
+            # Calculate time used: 125 chars = 30 seconds
+            question_time_used = len(questions) / 125 * 30
+            question_time_limit = 30
 
-            # Defender answers
+            # Use streaming display if content was generated with streaming
+            if content_buffer:
+                self._display.speech_stream(
+                    speaker=attacker.name,
+                    content=questions,
+                    word_count=len(questions),
+                    expected=expected_chars,
+                    time_used=question_time_used,
+                    time_limit=question_time_limit,
+                )
+            else:
+                self._display.speech(
+                    speaker=attacker.name,
+                    content=questions,
+                    word_count=len(questions),
+                    expected=expected_chars,
+                    time_used=question_time_used,
+                    time_limit=question_time_limit,
+                )
+
+            # Defender answers with streaming
             answer_expected = 250  # 1 minute
             self._display.speech(
                 speaker=defender.name,
@@ -191,7 +214,16 @@ class CrossExamStage(BaseStage):
                 expected=answer_expected,
             )
 
-            answer = defender.generate_cross_exam_answer(pool, questions)
+            # Callback for streaming output
+            answer_buffer = []
+            def answer_stream_callback(char: str) -> None:
+                answer_buffer.append(char)
+
+            answer = defender.generate_cross_exam_answer(
+                pool,
+                questions,
+                callback=answer_stream_callback,
+            )
 
             # Publish answer
             answer_msg = Message(
@@ -208,12 +240,29 @@ class CrossExamStage(BaseStage):
             pool.publish("public", answer_msg)
             messages_published += 1
 
-            self._display.speech(
-                speaker=defender.name,
-                content=answer,
-                word_count=len(answer),
-                expected=answer_expected,
-            )
+            # Calculate time used: 250 chars = 60 seconds
+            answer_time_used = len(answer) / 250 * 60
+            answer_time_limit = 60
+
+            # Use streaming display if content was generated with streaming
+            if answer_buffer:
+                self._display.speech_stream(
+                    speaker=defender.name,
+                    content=answer,
+                    word_count=len(answer),
+                    expected=answer_expected,
+                    time_used=answer_time_used,
+                    time_limit=answer_time_limit,
+                )
+            else:
+                self._display.speech(
+                    speaker=defender.name,
+                    content=answer,
+                    word_count=len(answer),
+                    expected=answer_expected,
+                    time_used=answer_time_used,
+                    time_limit=answer_time_limit,
+                )
 
             # Judge scoring if available
             if judge_agent:
@@ -249,8 +298,16 @@ class CrossExamStage(BaseStage):
                 expected=expected_chars,
             )
 
+            # Callback for streaming output
+            summary_buffer = []
+            def summary_stream_callback(char: str) -> None:
+                summary_buffer.append(char)
+
             # Generate summary based on cross-exam messages
-            summary = summarizer.generate_cross_exam_summary(pool)
+            summary = summarizer.generate_cross_exam_summary(
+                pool,
+                callback=summary_stream_callback,
+            )
 
             # Publish summary
             summary_msg = Message(
@@ -267,12 +324,29 @@ class CrossExamStage(BaseStage):
             pool.publish("public", summary_msg)
             messages_published += 1
 
-            self._display.speech(
-                speaker=summarizer.name,
-                content=summary,
-                word_count=len(summary),
-                expected=expected_chars,
-            )
+            # Calculate time used: 500 chars = 120 seconds
+            summary_time_used = len(summary) / 500 * 120
+            summary_time_limit = 120
+
+            # Use streaming display if content was generated with streaming
+            if summary_buffer:
+                self._display.speech_stream(
+                    speaker=summarizer.name,
+                    content=summary,
+                    word_count=len(summary),
+                    expected=expected_chars,
+                    time_used=summary_time_used,
+                    time_limit=summary_time_limit,
+                )
+            else:
+                self._display.speech(
+                    speaker=summarizer.name,
+                    content=summary,
+                    word_count=len(summary),
+                    expected=expected_chars,
+                    time_used=summary_time_used,
+                    time_limit=summary_time_limit,
+                )
 
         self._display.stage_end(self.name)
 

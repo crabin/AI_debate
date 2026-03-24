@@ -74,7 +74,9 @@ class ClosingStage(BaseStage):
         for speaker_id in self._CLOSING_SPEAKERS:
             agent = agents[speaker_id]
 
-            # Generate closing statement
+            # Generate closing statement with streaming
+            import sys
+
             self._display.speech(
                 speaker=agent.name,
                 content="正在生成总结...",
@@ -82,7 +84,12 @@ class ClosingStage(BaseStage):
                 expected=self._EXPECTED_CHARS,
             )
 
-            content = agent.generate_closing_statement(pool)
+            # Callback for streaming output
+            content_buffer = []
+            def stream_callback(char: str) -> None:
+                content_buffer.append(char)
+
+            content = agent.generate_closing_statement(pool, callback=stream_callback)
             word_count = len(content)
 
             # Publish message
@@ -100,13 +107,30 @@ class ClosingStage(BaseStage):
             pool.publish("public", message)
             messages_published += 1
 
-            # Display the actual speech
-            self._display.speech(
-                speaker=agent.name,
-                content=content,
-                word_count=word_count,
-                expected=self._EXPECTED_CHARS,
-            )
+            # Display the actual speech with streaming
+            # Calculate time used: chars / (250 chars/min) * 60 = seconds
+            time_used = word_count / 250 * 60
+            time_limit = self._EXPECTED_CHARS / 250 * 60  # 180 seconds
+
+            # Use streaming display if content was generated with streaming
+            if content_buffer:
+                self._display.speech_stream(
+                    speaker=agent.name,
+                    content=content,
+                    word_count=word_count,
+                    expected=self._EXPECTED_CHARS,
+                    time_used=time_used,
+                    time_limit=time_limit,
+                )
+            else:
+                self._display.speech(
+                    speaker=agent.name,
+                    content=content,
+                    word_count=word_count,
+                    expected=self._EXPECTED_CHARS,
+                    time_used=time_used,
+                    time_limit=time_limit,
+                )
 
             # Judge scoring if judge agent available
             if judge_agent:

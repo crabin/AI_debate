@@ -1,4 +1,3 @@
-from pathlib import Path
 from src.config import load_config, load_topics, load_personalities
 
 

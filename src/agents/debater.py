@@ -81,6 +81,11 @@ class DebaterAgent(BaseAgent):
         self.personality = personality
         self._position = position
 
+    @property
+    def position(self) -> int:
+        """Return the debater's position number (1-4)."""
+        return self._position
+
     @classmethod
     def create(
         cls,
@@ -143,12 +148,13 @@ class DebaterAgent(BaseAgent):
             common_rules=COMMON_RULES,
         )
 
-    def generate_opening_statement(self, pool, temperature: float = 0.7) -> str:
+    def generate_opening_statement(self, pool, temperature: float = 0.7, callback=None) -> str:
         """Generate opening statement for position 1 debater.
 
         Args:
             pool: MessagePool instance
             temperature: Sampling temperature
+            callback: Optional callback for streaming output
 
         Returns:
             Generated opening statement
@@ -157,6 +163,8 @@ class DebaterAgent(BaseAgent):
         context = self.build_context(pool, stage="opening")
         instruction = "请进行立论陈词。"
 
+        if callback:
+            return self.speak_stream(system_prompt, context, instruction, temperature, callback)
         return self.speak(system_prompt, context, instruction, temperature)
 
     def generate_cross_exam_question(
@@ -164,6 +172,7 @@ class DebaterAgent(BaseAgent):
         pool,
         target_opponent: str,
         temperature: float = 0.8,
+        callback=None,
     ) -> str:
         """Generate cross-examination questions.
 
@@ -171,6 +180,7 @@ class DebaterAgent(BaseAgent):
             pool: MessagePool instance
             target_opponent: Target opponent ID (e.g., "con_2")
             temperature: Sampling temperature
+            callback: Optional callback for streaming output
 
         Returns:
             Generated questions
@@ -179,6 +189,8 @@ class DebaterAgent(BaseAgent):
         context = self.build_context(pool, stage="cross_exam")
         instruction = f"请向{target_opponent}提问。"
 
+        if callback:
+            return self.speak_stream(system_prompt, context, instruction, temperature, callback)
         return self.speak(system_prompt, context, instruction, temperature)
 
     def generate_cross_exam_answer(
@@ -186,6 +198,7 @@ class DebaterAgent(BaseAgent):
         pool,
         question: str,
         temperature: float = 0.7,
+        callback=None,
     ) -> str:
         """Generate answer to cross-examination question.
 
@@ -193,6 +206,7 @@ class DebaterAgent(BaseAgent):
             pool: MessagePool instance
             question: The question being answered
             temperature: Sampling temperature
+            callback: Optional callback for streaming output
 
         Returns:
             Generated answer
@@ -201,6 +215,8 @@ class DebaterAgent(BaseAgent):
         context = self.build_context(pool, stage="cross_exam")
         instruction = f"请回答以下问题：\n{question}"
 
+        if callback:
+            return self.speak_stream(system_prompt, context, instruction, temperature, callback)
         return self.speak(system_prompt, context, instruction, temperature)
 
     def generate_free_debate_speech(
@@ -208,6 +224,7 @@ class DebaterAgent(BaseAgent):
         pool,
         recent_context: str,
         temperature: float = 0.8,
+        callback=None,
     ) -> str:
         """Generate free debate speech.
 
@@ -215,6 +232,7 @@ class DebaterAgent(BaseAgent):
             pool: MessagePool instance
             recent_context: Recent debate context
             temperature: Sampling temperature
+            callback: Optional callback for streaming output
 
         Returns:
             Generated speech
@@ -224,18 +242,22 @@ class DebaterAgent(BaseAgent):
         full_context = f"{context}\n{recent_context}"
         instruction = "请进行自由辩论发言。"
 
+        if callback:
+            return self.speak_stream(system_prompt, full_context, instruction, temperature, callback)
         return self.speak(system_prompt, full_context, instruction, temperature)
 
     def generate_cross_exam_summary(
         self,
         pool,
         temperature: float = 0.7,
+        callback=None,
     ) -> str:
         """Generate cross-examination summary (for position 1 debaters).
 
         Args:
             pool: MessagePool instance
             temperature: Sampling temperature
+            callback: Optional callback for streaming output
 
         Returns:
             Generated summary
@@ -245,18 +267,22 @@ class DebaterAgent(BaseAgent):
         context = self.build_context(pool, stage="cross_exam")
         instruction = "请进行攻辩小结，必须引用攻辩阶段的实际发言内容。"
 
+        if callback:
+            return self.speak_stream(system_prompt, context, instruction, temperature, callback)
         return self.speak(system_prompt, context, instruction, temperature)
 
     def generate_closing_statement(
         self,
         pool,
         temperature: float = 0.7,
+        callback=None,
     ) -> str:
         """Generate closing statement for position 4 debater.
 
         Args:
             pool: MessagePool instance
             temperature: Sampling temperature
+            callback: Optional callback for streaming output
 
         Returns:
             Generated closing statement
@@ -265,4 +291,6 @@ class DebaterAgent(BaseAgent):
         context = self.build_context(pool)
         instruction = "请进行总结陈词。"
 
+        if callback:
+            return self.speak_stream(system_prompt, context, instruction, temperature, callback)
         return self.speak(system_prompt, context, instruction, temperature)

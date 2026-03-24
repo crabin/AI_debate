@@ -9,13 +9,15 @@ __all__ = ["load_config", "load_topics", "load_personalities", "CONFIG_DIR"]
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 
 
-def load_config(config_dir: Path = CONFIG_DIR) -> dict:
+def load_config(config_dir: Path | None = CONFIG_DIR) -> dict:
     """Load default.yaml configuration.
 
     Raises:
         FileNotFoundError: If config file doesn't exist.
         ValueError: If config file is malformed.
     """
+    if config_dir is None:
+        config_dir = CONFIG_DIR
     config_path = config_dir / "default.yaml"
     try:
         with open(config_path) as f:
@@ -28,13 +30,15 @@ def load_config(config_dir: Path = CONFIG_DIR) -> dict:
         raise ValueError(f"Invalid YAML: {e}") from e
 
 
-def load_topics(config_dir: Path = CONFIG_DIR) -> list[dict]:
+def load_topics(config_dir: Path | None = CONFIG_DIR) -> list[dict]:
     """Load debate topics from topics.yaml.
 
     Raises:
         FileNotFoundError: If config file doesn't exist.
         ValueError: If config file is malformed.
     """
+    if config_dir is None:
+        config_dir = CONFIG_DIR
     topics_path = config_dir / "topics.yaml"
     try:
         with open(topics_path) as f:
@@ -48,13 +52,15 @@ def load_topics(config_dir: Path = CONFIG_DIR) -> list[dict]:
         raise ValueError(f"Invalid YAML: {e}") from e
 
 
-def load_personalities(config_dir: Path = CONFIG_DIR) -> dict:
+def load_personalities(config_dir: Path | None = CONFIG_DIR) -> dict:
     """Load personality templates from personalities.yaml.
 
     Raises:
         FileNotFoundError: If config file doesn't exist.
         ValueError: If config file is malformed.
     """
+    if config_dir is None:
+        config_dir = CONFIG_DIR
     personalities_path = config_dir / "personalities.yaml"
     try:
         with open(personalities_path) as f:
