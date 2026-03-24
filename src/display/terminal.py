@@ -68,7 +68,7 @@ class TerminalDisplay:
             self._console.print(f"  {winner_text}  分差: {results['margin']:.1f}")
 
         best = results.get("best_debater")
-        if best:
+        if best and best[0]:
             name, score = best
             self._console.print(f"  [yellow]最佳辩手：{name} ({score:.1f}分)[/yellow]")
 

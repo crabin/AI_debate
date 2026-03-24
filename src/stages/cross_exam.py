@@ -267,13 +267,14 @@ class CrossExamStage(BaseStage):
             # Judge scoring if available
             if judge_agent:
                 try:
+                    import json as _json
                     score = judge_agent.score_speaker(pool, attacker.agent_id)
                     judge_msg = Message(
                         speaker="judge",
                         role="评委",
                         team="judge",
                         stage=self.name,
-                        content=str(score),
+                        content=_json.dumps(score, ensure_ascii=False),
                         msg_type="score",
                         timestamp=time.time(),
                         word_count=0,

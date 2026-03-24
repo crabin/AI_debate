@@ -135,6 +135,7 @@ class ClosingStage(BaseStage):
             # Judge scoring if judge agent available
             if judge_agent:
                 try:
+                    import json as _json
                     score = judge_agent.score_speaker(pool, speaker_id)
                     # Publish judge's score to judge_notes channel
                     judge_msg = Message(
@@ -142,7 +143,7 @@ class ClosingStage(BaseStage):
                         role="评委",
                         team="judge",
                         stage=self.name,
-                        content=str(score),
+                        content=_json.dumps(score, ensure_ascii=False),
                         msg_type="score",
                         timestamp=time.time(),
                         word_count=0,
