@@ -81,3 +81,43 @@ def test_openai_compatible_chat_stream_calls_callback():
 
     assert result == "Hello"
     assert chunks == ["H", "e", "l", "l", "o"]
+
+
+# --- role-based create_llm() tests ---
+
+
+def test_create_llm_uses_role_prefix_for_provider(monkeypatch):
+    """PRO_LLM_PROVIDER overrides LLM_PROVIDER when role='pro'."""
+    monkeypatch.setenv("PRO_LLM_PROVIDER", "openai_compatible")
+    monkeypatch.setenv("PRO_LLM_MODEL", "gpt-4o")
+    monkeypatch.setenv("PRO_LLM_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setenv("PRO_LLM_API_KEY", "sk-test")
+    monkeypatch.setenv("LLM_PROVIDER", "zhipu")  # should be ignored for role=pro
+
+    llm = create_llm(role="pro")
+    assert llm.model_name == "gpt-4o"
+    from src.llm.openai_compatible import OpenAICompatibleLLM
+    assert isinstance(llm, OpenAICompatibleLLM)
+
+
+def test_create_llm_falls_back_to_global_when_no_role_prefix(monkeypatch):
+    """Falls back to global LLM_* vars when role-prefix vars absent."""
+    monkeypatch.delenv("CON_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("LLM_PROVIDER", "zhipu")
+    monkeypatch.setenv("LLM_MODEL", "glm-4.7")
+    monkeypatch.setenv("ZAI_API_KEY", "test-key")
+
+    llm = create_llm(role="con")
+    assert llm.model_name == "glm-4.7"
+    from src.llm.zhipu import ZhipuLLM
+    assert isinstance(llm, ZhipuLLM)
+
+
+def test_create_llm_no_role_is_backward_compatible(monkeypatch):
+    """Calling create_llm() without role still works as before."""
+    monkeypatch.setenv("LLM_PROVIDER", "zhipu")
+    monkeypatch.setenv("LLM_MODEL", "glm-4.7")
+    monkeypatch.setenv("ZAI_API_KEY", "test-key")
+
+    llm = create_llm()
+    assert llm.model_name == "glm-4.7"
